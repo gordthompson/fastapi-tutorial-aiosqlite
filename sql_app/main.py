@@ -1,20 +1,21 @@
+from contextlib import asynccontextmanager
 from typing import List
 
 from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import Session
 
 from . import crud, models, schemas
 from .database import async_engine, SessionLocal
 
-app = FastAPI()
 
-
-@app.on_event("startup")
-async def db_setup():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     async with async_engine.begin() as conn:
         await conn.run_sync(models.Base.metadata.drop_all)
         await conn.run_sync(models.Base.metadata.create_all)
+    yield
+
+app = FastAPI(lifespan=lifespan)
 
 
 # Dependency
@@ -64,7 +65,7 @@ async def read_user(
 async def create_item_for_user(
     user_id: int,
     item: schemas.ItemCreate,
-    async_session: Session = Depends(get_async_session),
+    async_session: AsyncSession = Depends(get_async_session),
 ):
     return await crud.create_user_item(
         async_session=async_session, item=item, user_id=user_id
@@ -75,7 +76,7 @@ async def create_item_for_user(
 async def read_items(
     skip: int = 0,
     limit: int = 100,
-    async_session: Session = Depends(get_async_session),
+    async_session: AsyncSession = Depends(get_async_session),
 ):
     items = await crud.get_items(async_session, skip=skip, limit=limit)
     return items
